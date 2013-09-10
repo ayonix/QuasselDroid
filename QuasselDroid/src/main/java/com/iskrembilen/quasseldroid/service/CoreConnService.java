@@ -691,8 +691,8 @@ public class CoreConnService extends Service {
         }
 
         if (preferences.getBoolean(getString(R.string.preference_reconnect), false) &&
-                reconnectCounter > 0 &&
-                checkWifiCondition()) {
+                reconnectCounter > 0 && checkWifiCondition() && checkMeteredConnection()
+               ) {
             reconnectCounter--;
 
             BusProvider.getInstance().post(new InitProgressEvent(false, "Reconnecting..."));
@@ -708,6 +708,16 @@ public class CoreConnService extends Service {
             connectionLost(message);
         }
     }
+
+    private boolean checkMeteredConnection() {
+        boolean reconnectMeteredConnection = preferences.getBoolean(
+                getString(R.string.preference_reconnect_metered), false);
+
+        ConnectivityManager connManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+
+        return reconnectMeteredConnection || !connManager.isActiveNetworkMetered();
+    }
+
 
     private boolean checkWifiCondition() {
         boolean checkForWifiConnection = preferences.getBoolean(

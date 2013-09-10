@@ -15,6 +15,7 @@
     <string name="preference_dynamic_backlog">dynamicBacklog</string>
     <string name="preference_reconnect">reconnect</string>
     <string name="preference_reconnect_wifi_only">reconnectWifiOnly</string>
+    <string name="preference_reconnect_metered">reconnectMetered</string>
     <string name="preference_reconnect_counter">reconnectCounter</string>
     <string name="preference_reconnect_delay">reconnectDelay</string>
     <string name="preference_fontsize_channel_list">fontsizeChannelList</string>
