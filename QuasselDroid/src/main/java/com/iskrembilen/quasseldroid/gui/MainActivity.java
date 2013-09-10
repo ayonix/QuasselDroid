@@ -336,7 +336,9 @@ public class MainActivity extends SherlockFragmentActivity {
 		if(event.done) {
 			if(currentFragment == null || currentFragment.getClass() != ChatFragment.class) {
 				FragmentTransaction trans = manager.beginTransaction();
-                trans.remove(currentFragment);
+                if (currentFragment != null) {
+                    trans.remove(currentFragment);
+                }
                 trans.add(R.id.main_content_container, chatFragment);
 
                 //Initialize the buffer drawer
