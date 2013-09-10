@@ -31,6 +31,7 @@
     <item name="BUFFER_ORDER_CHANGED" type="id"></item>
     <item name="BUFFER_HIDDEN_CHANGED" type="id"></item>
     <item name="LOST_CONNECTION" type="id"></item>
+    <item name="ERROR_ON_CONNECTING" type="id"></item>
     <item name="ADD_MULTIPLE_BUFFERS" type="id"></item>
     <item name="NEW_BACKLOGITEM_TO_SERVICE" type="id"></item>
     <item name="BUFFERUPDATE_BACKLOG" type="id"></item>

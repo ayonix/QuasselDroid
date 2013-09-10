@@ -445,11 +445,12 @@ public class CoreConnService extends Service {
 				BusProvider.getInstance().post(new ConnectionChangedEvent(Status.Connecting));
 				break;
 
-				
-			case R.id.LOST_CONNECTION:
-                String errorMessage = (String) msg.obj;
-                reconnect(errorMessage);
+            case R.id.ERROR_ON_CONNECTING:
+                connectionLost((String) msg.obj);
+                break;
 
+			case R.id.LOST_CONNECTION:
+                reconnect((String) msg.obj);
                 break;
 			case R.id.NEW_USER_ADDED:
 				/**
