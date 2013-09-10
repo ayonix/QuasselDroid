@@ -358,6 +358,8 @@ public class MainActivity extends SherlockFragmentActivity {
                 openedBuffer = -1;
                 FragmentTransaction fragmentTransaction = manager.beginTransaction();
                 ConnectingFragment fragment = ConnectingFragment.newInstance();
+
+                drawer.closeDrawers();
                 fragmentTransaction.remove(manager.findFragmentById(R.id.left_drawer));
                 fragmentTransaction.remove(manager.findFragmentById(R.id.right_drawer));
                 fragmentTransaction.remove(manager.findFragmentById(R.id.main_content_container));
