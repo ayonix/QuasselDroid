@@ -744,48 +744,42 @@ public final class CoreConnection {
 
 
 		public void run() {
-            String runMessage = "";
-            try {
-                runMessage = doRun();
-                if (runMessage != null) onDisconnected(runMessage);
-            } catch (EmptyQVariantException e) {
-                Log.e(TAG, "Protocol error", e);
-                onDisconnected("Protocol error!");
-            }
-
-            //Close everything
-            if (heartbeatTimer!=null) {
-                heartbeatTimer.cancel(); // Has this stopped executing now? Nobody knows.
-            }
-
-            //Close streams and socket
-            try {
-                if (outStream != null) {
-                    outStream.flush();
-                    outStream.close();
-                }
-            } catch (IOException e) {
-                Log.w(TAG, "IOException while closing outStream", e);
-            } try {
-                if(inStream != null)
-                    inStream.close();
-            } catch (IOException e) {
-                Log.w(TAG, "IOException while closing inStream", e);
-            } try {
-                if (socket != null)
-                    socket.close();
-            } catch (IOException e) {
-                Log.w(TAG, "IOException while closing socket", e);
-            }
-
-            if (runMessage == null || "".equals(runMessage)) {
-                service.getHandler().obtainMessage(R.id.LOST_CONNECTION, errorMessage).sendToTarget();
-            } else {
-                service.getHandler().obtainMessage(R.id.ERROR_ON_CONNECTING, errorMessage).sendToTarget();
-            }
-
-            service = null;
-        }
+			try {
+				String errorMessage = doRun();
+				if(errorMessage != null) onDisconnected(errorMessage);
+			} catch (EmptyQVariantException e) {
+				Log.e(TAG, "Protocol error", e);
+				onDisconnected("Protocol error!");
+			}
+			
+			//Close everything
+			if (heartbeatTimer!=null) {
+				heartbeatTimer.cancel(); // Has this stopped executing now? Nobody knows.
+			}
+			
+			//Close streams and socket
+			try {
+				if (outStream != null) {
+					outStream.flush();
+					outStream.close();
+				}
+			} catch (IOException e) {
+				Log.w(TAG, "IOException while closing outStream", e);
+			} try {
+				if(inStream != null)
+					inStream.close();
+			} catch (IOException e) {
+				Log.w(TAG, "IOException while closing inStream", e);
+			} try {
+				if (socket != null)
+					socket.close();
+			} catch (IOException e) {
+				Log.w(TAG, "IOException while closing socket", e);
+			}
+			
+			service.getHandler().obtainMessage(R.id.LOST_CONNECTION, errorMessage).sendToTarget();
+			service = null;
+		}
 
 		public String doRun() throws EmptyQVariantException {
 			this.running = true;
@@ -801,22 +795,22 @@ public final class CoreConnection {
 				service.getHandler().obtainMessage(R.id.UNSUPPORTED_PROTOCOL).sendToTarget();
 				Log.w(TAG, e);
 				closeConnection();
-				return "Unsupported Protocol";
-            } catch (IOException e) {
-                String message = "IO error while connecting! " + e.getMessage();
-                Log.w(TAG, "Got IOException while connecting");
-                if(e.getCause() instanceof NewCertificateException) {
-                    Log.w(TAG, "Got NewCertificateException while connecting");
-                    service.getHandler().obtainMessage(R.id.NEW_CERTIFICATE, ((NewCertificateException)e.getCause()).hashedCert()).sendToTarget();
-                    closeConnection();
-                } else if(e.getCause() instanceof CertificateException) {
-                    Log.w(TAG, "Got CertificateException while connecting");
-                    service.getHandler().obtainMessage(R.id.INVALID_CERTIFICATE, e.getCause().getMessage()).sendToTarget();
-                    closeConnection();
-                } else{
-                    e.printStackTrace();
+				return null;
+			} catch (IOException e) {
+				Log.w(TAG, "Got IOException while connecting");
+				if(e.getCause() instanceof NewCertificateException) {
+					Log.w(TAG, "Got NewCertificateException while connecting");
+					service.getHandler().obtainMessage(R.id.NEW_CERTIFICATE, ((NewCertificateException)e.getCause()).hashedCert()).sendToTarget();					
+					closeConnection();
+				} else if(e.getCause() instanceof CertificateException) {
+					Log.w(TAG, "Got CertificateException while connecting");
+					service.getHandler().obtainMessage(R.id.INVALID_CERTIFICATE, e.getCause().getMessage()).sendToTarget();
+					closeConnection();
+				} else{
+					e.printStackTrace();
+					return "IO error while connecting! " + e.getMessage();
 				}
-				return message;
+				return null;
 			} catch (GeneralSecurityException e) {
 				Log.w(TAG, "Invalid username/password combination");
 				return "Invalid username/password combination.";
