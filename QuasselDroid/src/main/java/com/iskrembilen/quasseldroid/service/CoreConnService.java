@@ -299,7 +299,10 @@ public class CoreConnService extends Service {
 		if (coreConn != null)
 			coreConn.closeConnection();
 		coreConn = null;
-		stopSelf();
+        initDone = false;
+        reconnectCounter = Integer.valueOf(preferences.getString(
+                getString(R.string.preference_reconnect_counter), RECONNECT_COUNTER_DEFAULT));
+        stopSelf();
 	}
 
 	public boolean isConnected() {
@@ -691,7 +694,8 @@ public class CoreConnService extends Service {
         }
 
         if (preferences.getBoolean(getString(R.string.preference_reconnect), false) &&
-                reconnectCounter > 0 && checkWifiCondition() && checkMeteredConnection()
+                reconnectCounter > 0 && isWifiCondition() && isMeteredConnection() &&
+                !isInitialConnectionAttempt()
                ) {
             reconnectCounter--;
 
@@ -703,13 +707,23 @@ public class CoreConnService extends Service {
                     connect();
                 }
             }, Integer.valueOf(preferences.getString(getString(R.string.preference_reconnect_delay),
-                    RECONNECT_DELAY_DEFAULT)) * 1000);
+                   RECONNECT_DELAY_DEFAULT)) * 1000);
         } else {
             connectionLost(message);
         }
     }
 
-    private boolean checkMeteredConnection() {
+    /*
+     * Check, if the current connection attempt is the first, user initiated attempt, or if we are
+     * in the automatic reconnection process.
+     */
+    private boolean isInitialConnectionAttempt() {
+        int reconnectPrefValue = Integer.valueOf(preferences.getString(
+                getString(R.string.preference_reconnect_counter), RECONNECT_COUNTER_DEFAULT));
+        return !initDone && reconnectPrefValue == reconnectCounter;
+    }
+
+    private boolean isMeteredConnection() {
         boolean reconnectMeteredConnection = preferences.getBoolean(
                 getString(R.string.preference_reconnect_metered), false);
 
@@ -719,14 +733,14 @@ public class CoreConnService extends Service {
     }
 
 
-    private boolean checkWifiCondition() {
-        boolean checkForWifiConnection = preferences.getBoolean(
+    private boolean isWifiCondition() {
+        boolean wifiConnection = preferences.getBoolean(
                 getString(R.string.preference_reconnect_wifi_only), false);
 
         ConnectivityManager connManager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
         NetworkInfo mWifi = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
 
-        return !checkForWifiConnection || mWifi.isConnected();
+        return !wifiConnection || mWifi.isConnected();
     }
 
     private void connectionLost(String message) {
