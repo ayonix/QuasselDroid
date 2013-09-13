@@ -27,6 +27,8 @@
     <string name="menu_hide_events">Hide Events</string>
     <string name="nick_list_header">Nicks</string>
     <string name="notification_connecting">Connecting to core</string>
+    <string name="preference_reconnect">reconnect</string>
+    <string name="preference_reconnect_on_wifi">reconnect_on_wifi</string>
     <string name="preference_notify_connect">notifyconnect</string>
     <string name="preference_notification_sound_file">notificationsoundfile</string>
     <string name="preference_notification_connect_sound_file">notificationconnectsoundfile</string>

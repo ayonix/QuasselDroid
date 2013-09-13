@@ -65,6 +65,20 @@
             android:title="Use a wake-lock to inhibit sleep" />
     </PreferenceCategory>
 
+    <PreferenceCategory android:title="Reconnection" >
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="@string/preference_reconnect"
+            android:summary="Reconnect if internet is available"
+            android:title="Reconnect to core" />
+        <CheckBoxPreference
+                android:defaultValue="false"
+                android:key="@string/preference_reconnect_on_wifi"
+                android:summary="Reconnect only if wifi is available"
+                android:title="Reconnect with wifi only"
+                android:dependency="@string/preference_reconnect" />
+    </PreferenceCategory>
+
     <PreferenceCategory android:title="Notifications" >
 
         <CheckBoxPreference

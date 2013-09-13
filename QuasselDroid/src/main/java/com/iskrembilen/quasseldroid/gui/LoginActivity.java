@@ -67,7 +67,8 @@ public class LoginActivity extends SherlockFragmentActivity implements Observer,
 	private static final String TAG = LoginActivity.class.getSimpleName();
 	public static final String PREFS_ACCOUNT = "AccountPreferences";
 	public static final String PREFS_CORE = "coreSelection";
-	
+    public static Intent connectIntent;
+
 	SharedPreferences settings;
 	QuasselDbHelper dbHelper;
 
@@ -360,19 +361,17 @@ public class LoginActivity extends SherlockFragmentActivity implements Observer,
 				Toast.makeText(LoginActivity.this, "This application requires an internet connection", Toast.LENGTH_SHORT).show();
 				return;
 			}
-			
 
-			//Make intent to send to the CoreConnect service, with connection data
-			Intent connectIntent = new Intent(LoginActivity.this, CoreConnService.class);
-			connectIntent.putExtra("id", core.getSelectedItemId());
-			connectIntent.putExtra("name", res.getString(QuasselDbHelper.KEY_NAME));
-			connectIntent.putExtra("address", res.getString(QuasselDbHelper.KEY_ADDRESS));
-			connectIntent.putExtra("port", res.getInt(QuasselDbHelper.KEY_PORT));
-			connectIntent.putExtra("ssl", res.getBoolean(QuasselDbHelper.KEY_SSL));
-			connectIntent.putExtra("username", usernameField.getText().toString().trim());
-			connectIntent.putExtra("password", passwordField.getText().toString());
-			
-			startService(connectIntent);
+            //Make intent to send to the CoreConnect service, with connection data
+            LoginActivity.connectIntent = new Intent(LoginActivity.this, CoreConnService.class);
+            LoginActivity.connectIntent.putExtra("id", core.getSelectedItemId());
+            LoginActivity.connectIntent.putExtra("name", res.getString(QuasselDbHelper.KEY_NAME));
+            LoginActivity.connectIntent.putExtra("address", res.getString(QuasselDbHelper.KEY_ADDRESS));
+            LoginActivity.connectIntent.putExtra("port", res.getInt(QuasselDbHelper.KEY_PORT));
+            LoginActivity.connectIntent.putExtra("ssl", res.getBoolean(QuasselDbHelper.KEY_SSL));
+            LoginActivity.connectIntent.putExtra("username", usernameField.getText().toString().trim());
+            LoginActivity.connectIntent.putExtra("password", passwordField.getText().toString());
+			startService(LoginActivity.connectIntent);
 
 			LoginProgressDialog.newInstance().show(getSupportFragmentManager(), "dialog");
 		}
