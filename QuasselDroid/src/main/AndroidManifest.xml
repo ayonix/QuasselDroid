@@ -57,11 +57,6 @@
         <!-- Start of Crittercism.com Code -->
         <activity android:name="com.crittercism.NotificationActivity" />
         <!-- End of Crittercism.com Code -->
-        <receiver android:name=".util.NetworkChangeReceiver" >
-            <intent-filter>
-                <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
-            </intent-filter>
-        </receiver>
     </application>
 
 </manifest>

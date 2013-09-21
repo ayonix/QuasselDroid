@@ -24,30 +24,38 @@
 package com.iskrembilen.quasseldroid.service;
 
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
-import android.graphics.Typeface;
+import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.WifiLock;
-import android.os.*;
+import android.os.Binder;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Message;
+import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.preference.PreferenceManager;
-import android.text.Spannable;
-import android.text.SpannableStringBuilder;
-import android.text.style.BackgroundColorSpan;
-import android.text.style.ForegroundColorSpan;
-import android.text.style.StyleSpan;
-import android.text.style.UnderlineSpan;
 import android.util.Log;
 import android.widget.Toast;
 
-import com.iskrembilen.quasseldroid.*;
+import com.iskrembilen.quasseldroid.Buffer;
+import com.iskrembilen.quasseldroid.BufferInfo;
+import com.iskrembilen.quasseldroid.IrcMessage;
 import com.iskrembilen.quasseldroid.IrcMessage.Flag;
+import com.iskrembilen.quasseldroid.IrcUser;
+import com.iskrembilen.quasseldroid.Network;
 import com.iskrembilen.quasseldroid.Network.ConnectionState;
+import com.iskrembilen.quasseldroid.NetworkCollection;
+import com.iskrembilen.quasseldroid.R;
 import com.iskrembilen.quasseldroid.events.CertificateChangedEvent;
 import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent;
+import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent.Status;
 import com.iskrembilen.quasseldroid.events.DisconnectCoreEvent;
 import com.iskrembilen.quasseldroid.events.FilterMessagesEvent;
 import com.iskrembilen.quasseldroid.events.GetBacklogEvent;
@@ -55,30 +63,25 @@ import com.iskrembilen.quasseldroid.events.InitProgressEvent;
 import com.iskrembilen.quasseldroid.events.JoinChannelEvent;
 import com.iskrembilen.quasseldroid.events.LatencyChangedEvent;
 import com.iskrembilen.quasseldroid.events.ManageChannelEvent;
+import com.iskrembilen.quasseldroid.events.ManageChannelEvent.ChannelAction;
 import com.iskrembilen.quasseldroid.events.ManageMessageEvent;
-import com.iskrembilen.quasseldroid.events.ManageNetworkEvent;
 import com.iskrembilen.quasseldroid.events.ManageMessageEvent.MessageAction;
+import com.iskrembilen.quasseldroid.events.ManageNetworkEvent;
 import com.iskrembilen.quasseldroid.events.ManageNetworkEvent.NetworkAction;
 import com.iskrembilen.quasseldroid.events.NetworksAvailableEvent;
+import com.iskrembilen.quasseldroid.events.NewCertificateEvent;
 import com.iskrembilen.quasseldroid.events.SendMessageEvent;
 import com.iskrembilen.quasseldroid.events.UnsupportedProtocolEvent;
-import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent.Status;
-import com.iskrembilen.quasseldroid.events.ManageChannelEvent.ChannelAction;
-import com.iskrembilen.quasseldroid.events.NewCertificateEvent;
 import com.iskrembilen.quasseldroid.io.CoreConnection;
 import com.iskrembilen.quasseldroid.util.BusProvider;
 import com.iskrembilen.quasseldroid.util.MessageUtil;
 import com.iskrembilen.quasseldroid.util.QuasseldroidNotificationManager;
-import com.iskrembilen.quasseldroid.util.ThemeUtil;
 import com.squareup.otto.Produce;
 import com.squareup.otto.Subscribe;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Observer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * This Service holds the connection to the core from the phone, it handles all
@@ -129,10 +132,20 @@ public class CoreConnService extends Service {
 	private String initReason = "";
 	
 	private boolean preferenceUseWakeLock;
+    private boolean preferenceReconnect;
+    private boolean preferenceReconnectWifiOnly;
+    private boolean shouldReconnect = false;
+
 	private WakeLock wakeLock;
 
 	private WifiLock wifiLock;
 
+    private long coreId;
+    private String address;
+    private int port;
+    private String username;
+    private String password;
+    private boolean ssl;
 
 	/**
 	 * Class for clients to access. Because we know this service always runs in
@@ -158,6 +171,9 @@ public class CoreConnService extends Service {
 		preferences = PreferenceManager.getDefaultSharedPreferences(this);
 		preferenceParseColors = preferences.getBoolean(getString(R.string.preference_colored_text), false);
 		preferenceUseWakeLock = preferences.getBoolean(getString(R.string.preference_wake_lock), false);
+        preferenceReconnect = preferences.getBoolean(getString(R.string.preference_reconnect), false);
+        preferenceReconnectWifiOnly = preferences.getBoolean(getString(R.string.preference_reconnect_on_wifi), false);
+
 		preferenceListener = new OnSharedPreferenceChangeListener() {
 			
 			@Override
@@ -168,21 +184,27 @@ public class CoreConnService extends Service {
 					preferenceUseWakeLock = preferences.getBoolean(getString(R.string.preference_wake_lock), true);
 					if(!preferenceUseWakeLock) releaseWakeLockIfExists();
 					else if(preferenceUseWakeLock && isConnected()) acquireWakeLockIfEnabled();
-				} 
+				} else if (key.equals(getString(R.string.preference_reconnect))) {
+                    preferenceReconnect = preferences.getBoolean(getString(R.string.preference_reconnect_on_wifi), false);
+                } else if (key.equals(getString(R.string.preference_reconnect_on_wifi))) {
+                    preferenceReconnectWifiOnly = preferences.getBoolean(getString(R.string.preference_reconnect_on_wifi), false);
+                }
 			}
 		};
 		preferences.registerOnSharedPreferenceChangeListener(preferenceListener);
 		BusProvider.getInstance().register(this);
-		startForeground(R.id.NOTIFICATION, notificationManager.getConnectingNotification());
+        registerReceiver(receiver, new IntentFilter("android.net.conn.CONNECTIVITY_CHANGE"));
+        startForeground(R.id.NOTIFICATION, notificationManager.getConnectingNotification());
+        shouldReconnect = true;
 	}
 
 	@Override
 	public void onDestroy() {
 		Log.i(TAG, "Destroying service");
 		this.disconnectFromCore();
-		BusProvider.getInstance().unregister(this);
+        BusProvider.getInstance().unregister(this);
 		stopForeground(true);
-
+        unregisterReceiver(receiver);
 	}
 
 	public Handler getHandler() {
@@ -209,21 +231,14 @@ public class CoreConnService extends Service {
 		}
 		requestedDisconnect = false;
 		Bundle connectData = intent.getExtras();
-		long id = connectData.getLong("id");
-		String address = connectData.getString("address");
-		int port = connectData.getInt("port");
-		String username = connectData.getString("username");
-		String password = connectData.getString("password");
-		Boolean ssl = connectData.getBoolean("ssl");
-		Log.i(TAG, "Connecting to core: " + address + ":" + port
-				+ " with username " + username);
-		networks = NetworkCollection.getInstance();
-		networks.clear();
-		
-		acquireWakeLockIfEnabled();
-		
-		coreConn = new CoreConnection(id, address, port, username, password, ssl,
-				this);
+		coreId = connectData.getLong("id");
+		address = connectData.getString("address");
+		port = connectData.getInt("port");
+		username = connectData.getString("username");
+		password = connectData.getString("password");
+		ssl = connectData.getBoolean("ssl");
+
+        connectToCore();
 	}
 	
 	private void acquireWakeLockIfEnabled() {
@@ -279,9 +294,20 @@ public class CoreConnService extends Service {
 		if (coreConn != null)
 			coreConn.closeConnection();
 		coreConn = null;
-		notificationManager = null;
-		stopSelf();
+        stopForeground(false);
 	}
+
+    public void connectToCore() {
+        Log.i(TAG, "Connecting to core: " + address + ":" + port
+                + " with username " + username);
+        networks = NetworkCollection.getInstance();
+        networks.clear();
+
+        acquireWakeLockIfEnabled();
+        coreConn = new CoreConnection(coreId, address, port, username, password, ssl,
+                this);
+        startForeground(R.id.NOTIFICATION, notificationManager.getConnectingNotification());
+    }
 
 	public boolean isConnected() {
 		return  coreConn != null && coreConn.isConnected();
@@ -681,12 +707,35 @@ public class CoreConnService extends Service {
 	public Network getNetworkById(int networkId) {
         return networks.getNetworkById(networkId);
     }
+
+    private BroadcastReceiver receiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final ConnectivityManager connMgr = (ConnectivityManager)
+                    context.getSystemService(Context.CONNECTIVITY_SERVICE);
+
+            final android.net.NetworkInfo wifi =
+                    connMgr.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+
+            if (shouldReconnect) {
+                if (wifi != null && wifi.isConnectedOrConnecting() && preferenceReconnect && !isConnected()) {
+                    Log.d(TAG, "Reconnecting on Wifi");
+                    connectToCore();
+                } else if (connMgr.getActiveNetworkInfo() != null &&
+                        connMgr.getActiveNetworkInfo().isConnectedOrConnecting() &&
+                        preferenceReconnect && !preferenceReconnectWifiOnly && !isConnected()) {
+                    Log.d(TAG, "Reconnecting (not Wifi)");
+                    connectToCore();
+                }
+            }
+        }
+    };
 	
 	@Produce
 	public ConnectionChangedEvent produceConnectionStatus() {
-		if(isConnected())
+		if(isConnected()) {
 			return new ConnectionChangedEvent(Status.Connected);
-		else 
+        } else
 			return new ConnectionChangedEvent(Status.Disconnected);
 	}
 	
@@ -720,6 +769,8 @@ public class CoreConnService extends Service {
 	@Subscribe
 	public void doDisconnectCore(DisconnectCoreEvent event) {
 		disconnectFromCore();
+        notificationManager = null;
+        stopSelf();
 	}
 	
 	@Subscribe

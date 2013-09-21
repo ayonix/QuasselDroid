@@ -23,33 +23,39 @@
 
 package com.iskrembilen.quasseldroid.gui;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
-import android.app.ProgressDialog;
-import android.content.*;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.os.ResultReceiver;
 import android.support.v4.app.DialogFragment;
-import android.support.v4.app.FragmentActivity;
-import android.util.Log;
-import com.actionbarsherlock.view.Menu;
-import com.actionbarsherlock.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.widget.*;
+import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemSelectedListener;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.EditText;
+import android.widget.SimpleCursorAdapter;
+import android.widget.Spinner;
+import android.widget.Toast;
 
 import com.actionbarsherlock.app.SherlockFragmentActivity;
+import com.actionbarsherlock.view.Menu;
+import com.actionbarsherlock.view.MenuItem;
 import com.iskrembilen.quasseldroid.R;
 import com.iskrembilen.quasseldroid.events.CertificateChangedEvent;
 import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent;
+import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent.Status;
 import com.iskrembilen.quasseldroid.events.DisconnectCoreEvent;
 import com.iskrembilen.quasseldroid.events.NewCertificateEvent;
-import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent.Status;
 import com.iskrembilen.quasseldroid.events.UnsupportedProtocolEvent;
 import com.iskrembilen.quasseldroid.gui.fragments.LoginProgressDialog;
 import com.iskrembilen.quasseldroid.io.QuasselDbHelper;
@@ -67,7 +73,6 @@ public class LoginActivity extends SherlockFragmentActivity implements Observer,
 	private static final String TAG = LoginActivity.class.getSimpleName();
 	public static final String PREFS_ACCOUNT = "AccountPreferences";
 	public static final String PREFS_CORE = "coreSelection";
-    public static Intent connectIntent;
 
 	SharedPreferences settings;
 	QuasselDbHelper dbHelper;
@@ -363,15 +368,15 @@ public class LoginActivity extends SherlockFragmentActivity implements Observer,
 			}
 
             //Make intent to send to the CoreConnect service, with connection data
-            LoginActivity.connectIntent = new Intent(LoginActivity.this, CoreConnService.class);
-            LoginActivity.connectIntent.putExtra("id", core.getSelectedItemId());
-            LoginActivity.connectIntent.putExtra("name", res.getString(QuasselDbHelper.KEY_NAME));
-            LoginActivity.connectIntent.putExtra("address", res.getString(QuasselDbHelper.KEY_ADDRESS));
-            LoginActivity.connectIntent.putExtra("port", res.getInt(QuasselDbHelper.KEY_PORT));
-            LoginActivity.connectIntent.putExtra("ssl", res.getBoolean(QuasselDbHelper.KEY_SSL));
-            LoginActivity.connectIntent.putExtra("username", usernameField.getText().toString().trim());
-            LoginActivity.connectIntent.putExtra("password", passwordField.getText().toString());
-			startService(LoginActivity.connectIntent);
+            Intent connectIntent = new Intent(LoginActivity.this, CoreConnService.class);
+            connectIntent.putExtra("id", core.getSelectedItemId());
+            connectIntent.putExtra("name", res.getString(QuasselDbHelper.KEY_NAME));
+            connectIntent.putExtra("address", res.getString(QuasselDbHelper.KEY_ADDRESS));
+            connectIntent.putExtra("port", res.getInt(QuasselDbHelper.KEY_PORT));
+            connectIntent.putExtra("ssl", res.getBoolean(QuasselDbHelper.KEY_SSL));
+            connectIntent.putExtra("username", usernameField.getText().toString().trim());
+            connectIntent.putExtra("password", passwordField.getText().toString());
+			startService(connectIntent);
 
 			LoginProgressDialog.newInstance().show(getSupportFragmentManager(), "dialog");
 		}

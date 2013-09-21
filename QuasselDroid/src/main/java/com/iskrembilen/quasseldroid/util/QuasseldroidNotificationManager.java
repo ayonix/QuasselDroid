@@ -9,11 +9,10 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.preference.PreferenceManager;
 import android.support.v4.app.NotificationCompat;
-import android.util.Log;
 
 import com.iskrembilen.quasseldroid.R;
-import com.iskrembilen.quasseldroid.gui.MainActivity;
 import com.iskrembilen.quasseldroid.gui.LoginActivity;
+import com.iskrembilen.quasseldroid.gui.MainActivity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -84,7 +83,7 @@ public class QuasseldroidNotificationManager {
 		builder.setContentIntent(contentIntent);
 
 		// Send the notification.
-		notifyManager.notify(R.id.NOTIFICATION, builder.getNotification());
+		notifyManager.notify(R.id.NOTIFICATION, builder.build());
 	}
 
 	public void notifyConnected() {
@@ -103,7 +102,7 @@ public class QuasseldroidNotificationManager {
 		launch.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
 		PendingIntent contentIntent = PendingIntent.getActivity(context, 0, launch, 0);
 		builder.setContentIntent(contentIntent);
-		return builder.getNotification();
+		return builder.build();
 
 	}
 	public void notifyConnecting() {
@@ -157,7 +156,7 @@ public class QuasseldroidNotificationManager {
 		if(defaults != 0) builder.setDefaults(defaults);
 
 		// Send the notification.
-		notifyManager.notify(R.id.NOTIFICATION, builder.getNotification());
+		notifyManager.notify(R.id.NOTIFICATION, builder.build());
 	}
 
 	public void notifyDisconnected() {
@@ -176,6 +175,6 @@ public class QuasseldroidNotificationManager {
 		// Set the info for the views that show in the notification panel.
 		builder.setContentIntent(contentIntent);
 		//Send the notification.
-		notifyManager.notify(R.id.NOTIFICATION_DISCONNECTED, builder.getNotification());
+		notifyManager.notify(R.id.NOTIFICATION, builder.build());
 	}
 }
