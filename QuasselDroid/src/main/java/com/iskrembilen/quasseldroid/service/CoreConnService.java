@@ -113,7 +113,7 @@ public class CoreConnService extends Service {
 
 	private CoreConnection coreConn;
 	private final IBinder binder = new LocalBinder();
-	private boolean requestedDisconnect;
+	private boolean shouldReconnect;
 
 	Handler incomingHandler;
 
@@ -134,7 +134,6 @@ public class CoreConnService extends Service {
 	private boolean preferenceUseWakeLock;
     private boolean preferenceReconnect;
     private boolean preferenceReconnectWifiOnly;
-    private boolean shouldReconnect = false;
 
 	private WakeLock wakeLock;
 
@@ -195,7 +194,6 @@ public class CoreConnService extends Service {
 		BusProvider.getInstance().register(this);
         registerReceiver(receiver, new IntentFilter("android.net.conn.CONNECTIVITY_CHANGE"));
         startForeground(R.id.NOTIFICATION, notificationManager.getConnectingNotification());
-        shouldReconnect = true;
 	}
 
 	@Override
@@ -229,7 +227,7 @@ public class CoreConnService extends Service {
 		if (coreConn != null) {
 			this.disconnectFromCore();
 		}
-		requestedDisconnect = false;
+		shouldReconnect = false;
 		Bundle connectData = intent.getExtras();
 		coreId = connectData.getLong("id");
 		address = connectData.getString("address");
@@ -564,8 +562,10 @@ public class CoreConnService extends Service {
 				 */
 				notificationManager.notifyConnected();
 				initDone = true;
+                shouldReconnect = true;
 				BusProvider.getInstance().post(new InitProgressEvent(true, ""));
 				BusProvider.getInstance().post(new NetworksAvailableEvent(networks));
+                BusProvider.getInstance().post(new ConnectionChangedEvent(Status.Connected));
 				break;
 			case R.id.USER_PARTED:
 				bundle = (Bundle) msg.obj;
@@ -746,7 +746,7 @@ public class CoreConnService extends Service {
 	
 	@Produce
 	public NetworksAvailableEvent produceNetworksAvailable() {
-		return new NetworksAvailableEvent(networks);
+        return new NetworksAvailableEvent(networks);
 	}
 	
 	@Subscribe

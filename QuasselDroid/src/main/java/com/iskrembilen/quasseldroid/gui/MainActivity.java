@@ -22,33 +22,43 @@
  */
 
 package com.iskrembilen.quasseldroid.gui;
+
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
-import android.support.v4.app.*;
-import android.support.v4.view.ViewPager;
+import android.support.v4.app.ActionBarDrawerToggle;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v4.widget.DrawerLayout;
 import android.util.Log;
-import android.view.*;
+import android.view.Gravity;
+import android.view.View;
 import android.view.inputmethod.InputMethodManager;
-import com.actionbarsherlock.view.Menu;
-import com.actionbarsherlock.view.MenuItem;
 import android.widget.Toast;
-import android.content.res.Configuration;
-import android.content.Context;
 
 import com.actionbarsherlock.app.SherlockFragmentActivity;
+import com.actionbarsherlock.view.Menu;
+import com.actionbarsherlock.view.MenuItem;
 import com.iskrembilen.quasseldroid.NetworkCollection;
 import com.iskrembilen.quasseldroid.Quasseldroid;
 import com.iskrembilen.quasseldroid.R;
-import com.iskrembilen.quasseldroid.events.*;
+import com.iskrembilen.quasseldroid.events.BufferOpenedEvent;
+import com.iskrembilen.quasseldroid.events.CompleteNickEvent;
+import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent;
 import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent.Status;
+import com.iskrembilen.quasseldroid.events.DisconnectCoreEvent;
+import com.iskrembilen.quasseldroid.events.InitProgressEvent;
+import com.iskrembilen.quasseldroid.events.LatencyChangedEvent;
+import com.iskrembilen.quasseldroid.events.UpdateReadBufferEvent;
 import com.iskrembilen.quasseldroid.gui.fragments.BufferFragment;
 import com.iskrembilen.quasseldroid.gui.fragments.ChatFragment;
 import com.iskrembilen.quasseldroid.gui.fragments.ConnectingFragment;
@@ -215,15 +225,19 @@ public class MainActivity extends SherlockFragmentActivity {
 	protected void onResume() {
 		super.onResume();
 		BusProvider.getInstance().register(this);
-		if(!Quasseldroid.connected) {
+		if(Quasseldroid.status == Status.Disconnected) {
 			returnToLogin();
-		}
-        if(isDrawerOpen && bufferFragment != null) {
-            drawer.openDrawer(Gravity.LEFT);
-            if(chatFragment != null) chatFragment.setUserVisibleHint(false);
+		} else if (Quasseldroid.status == Status.Connecting) {
+            showInitProgress();
+        } else {
+            if(isDrawerOpen && bufferFragment != null) {
+                drawer.openDrawer(Gravity.LEFT);
+                if(chatFragment != null) chatFragment.setUserVisibleHint(false);
+            } else {
+                drawer.closeDrawer(Gravity.LEFT);
+            }
+            hideKeyboard(drawer);
         }
-        else drawer.closeDrawer(Gravity.LEFT);
-        hideKeyboard(drawer);
 	}
 
 	@Override
@@ -231,7 +245,6 @@ public class MainActivity extends SherlockFragmentActivity {
 		super.onPause();
         isDrawerOpen = drawer.isDrawerOpen(Gravity.LEFT);
 		BusProvider.getInstance().unregister(this);
-
 	}
 
     @Override
@@ -334,14 +347,23 @@ public class MainActivity extends SherlockFragmentActivity {
                 trans.commit();
 			}
 		} else {
-			if(currentFragment == null) {
-				FragmentTransaction fragmentTransaction = manager.beginTransaction();
-				ConnectingFragment fragment = ConnectingFragment.newInstance();
-				fragmentTransaction.add(R.id.main_content_container, fragment, "connect");
-				fragmentTransaction.commit();
+			if(currentFragment == null || currentFragment.getClass() != ConnectingFragment.class) {
+				showInitProgress();
 			}
 		}
 	}
+
+    private void showInitProgress() {
+        Log.d(TAG, "SHOWING INIT PROGRESS");
+        FragmentManager manager = getSupportFragmentManager();
+        FragmentTransaction fragmentTransaction = manager.beginTransaction();
+        ConnectingFragment fragment = ConnectingFragment.newInstance();
+        fragmentTransaction.replace(R.id.main_content_container, fragment, "init");
+        fragmentTransaction.remove(bufferFragment);
+        fragmentTransaction.remove(nickFragment);
+        drawer.closeDrawers();
+        fragmentTransaction.commit();
+    }
 
 	@Subscribe
 	public void onLatencyChanged(LatencyChangedEvent event) {
@@ -363,7 +385,6 @@ public class MainActivity extends SherlockFragmentActivity {
 			if(event.reason != "") {
 				removeDialog(R.id.DIALOG_CONNECTING);
 				Toast.makeText(MainActivity.this.getApplicationContext(), event.reason, Toast.LENGTH_LONG).show();
-
 			}
 			returnToLogin();
 		}
