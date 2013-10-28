@@ -716,7 +716,7 @@ public class CoreConnService extends Service {
 
         if (preferences.getBoolean(getString(R.string.preference_reconnect_periodically), false) &&
                 preferences.getBoolean(getString(R.string.preference_reconnect), false) &&
-                reconnectCounter > 0 && isWifiCondition() && isMeteredCondition() &&
+                reconnectCounter > 0 && isWifiCondition() && checkForMeteredCondition() &&
                 !isInitialConnectionAttempt()
                ) {
             reconnectCounter--;
@@ -750,7 +750,7 @@ public class CoreConnService extends Service {
         return !initDone && reconnectPrefValue == reconnectCounter;
     }
 
-    private boolean isMeteredCondition() {
+    private boolean checkForMeteredCondition() {
         boolean reconnectMeteredConnection = preferences.getBoolean(
                 getString(R.string.preference_reconnect_on_metered), false);
 
@@ -806,7 +806,7 @@ public class CoreConnService extends Service {
 
             if (shouldReconnect && !preferences.getBoolean(getString(R.string.preference_reconnect_periodically), false)) {
                 if (wifi != null && wifi.isConnectedOrConnecting() && preferenceReconnect && !isConnected() &&
-                        isMeteredCondition()) {
+                        checkForMeteredCondition()) {
                     Log.d(TAG, "Reconnecting on Wifi");
                     connectToCore();
                 } else if (connMgr.getActiveNetworkInfo() != null &&
