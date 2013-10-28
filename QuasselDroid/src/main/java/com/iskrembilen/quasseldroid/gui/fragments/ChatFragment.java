@@ -274,25 +274,27 @@ public class ChatFragment extends SherlockFragment {
         Log.d(TAG, "Setting buffer and chat is visible: " + getUserVisibleHint());
 		this.bufferId = bufferId;
 		if(adapter != null && networks != null) {
-            if(adapter.buffer != null && bufferId != adapter.buffer.getInfo().id) {
-                updateMarkerLine();
-            }
-			adapter.clearBuffer();
-			Buffer buffer = networks.getBufferById(bufferId);
-			adapter.setBuffer(buffer, networks);
-			nickCompletionHelper = new NickCompletionHelper(buffer.getUsers().getUniqueUsers());
-			autoCompleteButton.setEnabled(true);
-			inputField.setEnabled(true);
-			buffer.setDisplayed(true);
-			BusProvider.getInstance().post(new ManageChannelEvent(buffer.getInfo().id, ChannelAction.HIGHLIGHTS_READ));
+            Buffer buffer = networks.getBufferById(bufferId);
+            if (buffer != null) {
+                if(adapter.buffer != null && bufferId != adapter.buffer.getInfo().id) {
+                    updateMarkerLine();
+                }
+                adapter.clearBuffer();
+                adapter.setBuffer(buffer, networks);
+                nickCompletionHelper = new NickCompletionHelper(buffer.getUsers().getUniqueUsers());
+                autoCompleteButton.setEnabled(true);
+                inputField.setEnabled(true);
+                buffer.setDisplayed(true);
+                BusProvider.getInstance().post(new ManageChannelEvent(buffer.getInfo().id, ChannelAction.HIGHLIGHTS_READ));
 
-			//Move list to correect position
-			if (adapter.buffer.getTopMessageShown() == 0) {
-				backlogList.setSelection(adapter.getCount()-1);
-			}else{
-				adapter.setListTopMessage(adapter.buffer.getTopMessageShown());
-			}
-		}
+                //Move list to correct position
+                if (adapter.buffer.getTopMessageShown() == 0) {
+                    backlogList.setSelection(adapter.getCount()-1);
+                }else{
+                    adapter.setListTopMessage(adapter.buffer.getTopMessageShown());
+                }
+            }
+        }
 	}
 
 	public class BacklogAdapter extends BaseAdapter implements Observer {

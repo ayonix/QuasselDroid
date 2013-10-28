@@ -48,6 +48,7 @@ import android.widget.Toast;
 import com.actionbarsherlock.app.SherlockFragmentActivity;
 import com.actionbarsherlock.view.Menu;
 import com.actionbarsherlock.view.MenuItem;
+import com.iskrembilen.quasseldroid.Buffer;
 import com.iskrembilen.quasseldroid.NetworkCollection;
 import com.iskrembilen.quasseldroid.Quasseldroid;
 import com.iskrembilen.quasseldroid.R;
@@ -145,7 +146,10 @@ public class MainActivity extends SherlockFragmentActivity {
                 if(chatFragment != null) chatFragment.setMenuVisibility(true);
 
                 if(openedBuffer != -1) {
-                    getSupportActionBar().setTitle(NetworkCollection.getInstance().getBufferById(openedBuffer).getInfo().name);
+                    Buffer buffer = NetworkCollection.getInstance().getBufferById(openedBuffer);
+                    if (buffer != null) {
+                        getSupportActionBar().setTitle(buffer.getInfo().name);
+                    }
                 } else {
                     getSupportActionBar().setTitle(getResources().getString(R.string.app_name));
                     invalidateOptionsMenu();
@@ -335,7 +339,10 @@ public class MainActivity extends SherlockFragmentActivity {
 		if(event.done) {
 			if(currentFragment == null || currentFragment.getClass() != ChatFragment.class) {
 				FragmentTransaction trans = manager.beginTransaction();
-                trans.replace(R.id.main_content_container, chatFragment);
+                if (currentFragment != null) {
+                    trans.remove(currentFragment);
+                }
+                trans.add(R.id.main_content_container, chatFragment);
 
                 //Initialize the buffer drawer
                 trans.add(R.id.left_drawer, bufferFragment);

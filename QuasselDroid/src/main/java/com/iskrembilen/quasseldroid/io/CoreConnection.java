@@ -85,7 +85,7 @@ public final class CoreConnection {
 
 	private static final String TAG = CoreConnection.class.getSimpleName();
 
-	private Socket socket;
+    private Socket socket;
 	private QDataOutputStream outStream;
 	private QDataInputStream inStream;
 
@@ -640,14 +640,16 @@ public final class CoreConnection {
 				
 				QMetaTypeRegistry.serialize(QMetaType.Type.QVariant, bos, data);
 				// Tell the other end how much data to expect
-				outStream.writeUInt(bos.size(), 32);
-				
-				// Sanity check, check that we can decode our own stuff before sending it off
-				//QDataInputStream bis = new QDataInputStream(new ByteArrayInputStream(baos.toByteArray()));
-				//QMetaTypeRegistry.instance().getTypeForId(QMetaType.Type.QVariant.getValue()).getSerializer().unserialize(bis, DataStreamVersion.Qt_4_2);
-	
-				// Send data 
-				QMetaTypeRegistry.serialize(QMetaType.Type.QVariant, outStream, data);
+                if (outStream != null) {
+                    outStream.writeUInt(bos.size(), 32);
+
+                    // Sanity check, check that we can decode our own stuff before sending it off
+                    //QDataInputStream bis = new QDataInputStream(new ByteArrayInputStream(baos.toByteArray()));
+                    //QMetaTypeRegistry.instance().getTypeForId(QMetaType.Type.QVariant.getValue()).getSerializer().unserialize(bis, DataStreamVersion.Qt_4_2);
+
+                    // Send data
+                    QMetaTypeRegistry.serialize(QMetaType.Type.QVariant, outStream, data);
+                }
 				bos.close();
 				baos.close();
 			} catch (IOException e) {
@@ -714,7 +716,7 @@ public final class CoreConnection {
 		packedFunc.add(new QVariant<String>(objectName, QVariantType.String));
 		sendQVariantList(packedFunc);
 	}
-	
+
 	private void updateInitProgress(String message) {
 		Log.i(TAG, message);
 		service.getHandler().obtainMessage(R.id.INIT_PROGRESS, message).sendToTarget();
