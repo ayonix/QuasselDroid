@@ -130,7 +130,7 @@ public class LoginActivity extends SherlockFragmentActivity implements Observer,
 
         //Use saved settings
         int coreIndex = settings.getInt(PREFS_CORE, 0);
-        if (core.getCount() > settings.getInt(PREFS_CORE, 0))
+        if (core.getCount() > settings.getInt(PREFS_CORE, 0)) {
 			core.setSelection(coreIndex);
             loadUserPreferences(core.getAdapter().getItemId(coreIndex));
         }
@@ -382,9 +382,8 @@ public class LoginActivity extends SherlockFragmentActivity implements Observer,
         }else {
             settingsedit.putInt(PREFS_CORE, core.getSelectedItemPosition());
             dbHelper.deleteUser(selectedCore);
-
-            }
-            settingsedit.commit();
+        }
+        settingsedit.commit();
         Bundle res = dbHelper.getCore(selectedCore);
 
         //Make intent to send to the CoreConnect service, with connection data
@@ -397,11 +396,11 @@ public class LoginActivity extends SherlockFragmentActivity implements Observer,
         connectIntent.putExtra("username", usernameField.getText().toString().trim());
         connectIntent.putExtra("password", passwordField.getText().toString());
 
-            startService(connectIntent);
+        startService(connectIntent);
 
-            LoginProgressDialog.newInstance().show(getSupportFragmentManager(), "dialog");
-        }
-    };
+        LoginProgressDialog.newInstance().show(getSupportFragmentManager(), "dialog");
+    }
+
 
     public void updateCoreSpinner() {
         ((SimpleCursorAdapter) core.getAdapter()).getCursor().requery();
