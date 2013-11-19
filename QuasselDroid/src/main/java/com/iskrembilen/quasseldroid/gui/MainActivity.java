@@ -258,7 +258,7 @@ public class MainActivity extends SherlockFragmentActivity {
     protected void onResume() {
         super.onResume();
         BusProvider.getInstance().register(this);
-        if (!Quasseldroid.connected) {
+        if (Quasseldroid.status == Status.Disconnected) {
             returnToLogin();
 		} else if (Quasseldroid.status == Status.Connecting) {
             showInitProgress();
