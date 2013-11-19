@@ -24,14 +24,10 @@
 package com.iskrembilen.quasseldroid.service;
 
 import android.app.Service;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.WifiLock;
 import android.os.Binder;
@@ -52,8 +48,10 @@ import com.iskrembilen.quasseldroid.IrcMessage.Flag;
 import com.iskrembilen.quasseldroid.IrcUser;
 import com.iskrembilen.quasseldroid.Network;
 import com.iskrembilen.quasseldroid.Network.ConnectionState;
+import com.iskrembilen.quasseldroid.events.BufferRemovedEvent;
 import com.iskrembilen.quasseldroid.NetworkCollection;
 import com.iskrembilen.quasseldroid.R;
+import com.iskrembilen.quasseldroid.events.BufferOpenedEvent;
 import com.iskrembilen.quasseldroid.events.CertificateChangedEvent;
 import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent;
 import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent.Status;
@@ -71,6 +69,7 @@ import com.iskrembilen.quasseldroid.events.ManageNetworkEvent;
 import com.iskrembilen.quasseldroid.events.ManageNetworkEvent.NetworkAction;
 import com.iskrembilen.quasseldroid.events.NetworksAvailableEvent;
 import com.iskrembilen.quasseldroid.events.NewCertificateEvent;
+import com.iskrembilen.quasseldroid.events.QueryUserEvent;
 import com.iskrembilen.quasseldroid.events.SendMessageEvent;
 import com.iskrembilen.quasseldroid.events.UnsupportedProtocolEvent;
 import com.iskrembilen.quasseldroid.io.CoreConnection;
@@ -147,6 +146,11 @@ public class CoreConnService extends Service {
     private String password;
     private boolean ssl;
 
+    // On a QueryUserEvent save those to be able to open the added buffer
+    private int networkToSwitchTo;
+    private String bufferNameToSwitchTo;
+
+
     private int reconnectCounter;
     private static String RECONNECT_COUNTER_DEFAULT = "10";
 
@@ -202,7 +206,7 @@ public class CoreConnService extends Service {
 		BusProvider.getInstance().register(this);
         registerReceiver(receiver, new IntentFilter("android.net.conn.CONNECTIVITY_CHANGE"));
         resetReconnectCounter();
-        startForeground(R.id.NOTIFICATION, notificationManager.getConnectingNotification());
+		startForeground(R.id.NOTIFICATION, notificationManager.getConnectingNotification());
 	}
 
     private void resetReconnectCounter() {
@@ -215,7 +219,7 @@ public class CoreConnService extends Service {
 	public void onDestroy() {
 		Log.i(TAG, "Destroying service");
 		this.disconnectFromCore();
-        BusProvider.getInstance().unregister(this);
+		BusProvider.getInstance().unregister(this);
 		stopForeground(true);
         unregisterReceiver(receiver);
 	}
@@ -285,6 +289,12 @@ public class CoreConnService extends Service {
 	public void sendMessage(int bufferId, String message) {
 		coreConn.sendMessage(bufferId, message);
 	}
+
+    public void queryUser(int bufferId, String nick) {
+        coreConn.sendMessage(bufferId, String.format("/query %s", nick));
+        networkToSwitchTo = networks.getBufferById(bufferId).getInfo().networkId;
+        bufferNameToSwitchTo = nick;
+    }
 	
 	public void unhideTempHiddenBuffer(int bufferId) {
 		coreConn.requestUnhideTempHiddenBuffer(bufferId);
@@ -399,7 +409,7 @@ public class CoreConnService extends Service {
 					}
 					buffer.addMessage(message);
 					
-					if (buffer.isTemporarilyHidden()) {
+					if (buffer.isTemporarilyHidden() && (message.type==IrcMessage.Type.Plain || message.type==IrcMessage.Type.Notice || message.type==IrcMessage.Type.Action)) {
 						unhideTempHiddenBuffer(buffer.getInfo().id);
 					}
 				} else {
@@ -413,6 +423,7 @@ public class CoreConnService extends Service {
 				 * new buffer
 				 */
 				networks.addBuffer((Buffer) msg.obj);
+                checkSwitchingTo((Buffer) msg.obj);
 				break;
 			case R.id.ADD_MULTIPLE_BUFFERS:
 				/**
@@ -426,10 +437,13 @@ public class CoreConnService extends Service {
 				networks.addNetwork((Network)msg.obj);
 				break;
 			case R.id.NETWORK_REMOVED:
+				BusProvider.getInstance().post(new BufferRemovedEvent(networks.getNetworkById(msg.arg1).getStatusBuffer().getInfo().id));
 				networks.removeNetwork(msg.arg1);
 				break;
 			case R.id.SET_CONNECTION_STATE:
-				networks.getNetworkById(msg.arg1).setConnectionState((ConnectionState)msg.obj);
+				if(networks.getNetworkById(msg.arg1)!=null){
+					networks.getNetworkById(msg.arg1).setConnectionState((ConnectionState)msg.obj);
+				}
 				break;
 			case R.id.SET_STATUS_BUFFER:
 				networks.getNetworkById(msg.arg1).setStatusBuffer((Buffer) msg.obj);
@@ -526,6 +540,9 @@ public class CoreConnService extends Service {
 				 * Buffer has been marked as temporary hidden, update buffer
 				 */
 				networks.getBufferById(msg.arg1).setTemporarilyHidden((Boolean) msg.obj);
+                if (!(Boolean) msg.obj) {
+                    checkSwitchingTo(networks.getBufferById(msg.arg1));
+                }
 				break;
 
 			case R.id.SET_BUFFER_PERM_HIDDEN:
@@ -533,6 +550,9 @@ public class CoreConnService extends Service {
 				 * Buffer has been marked as permanently hidden, update buffer
 				 */
 				networks.getBufferById(msg.arg1).setPermanentlyHidden((Boolean) msg.obj);
+                if (!(Boolean) msg.obj) {
+                    checkSwitchingTo(networks.getBufferById(msg.arg1));
+                }
 				break;
 
 			case R.id.INVALID_CERTIFICATE:
@@ -608,7 +628,6 @@ public class CoreConnService extends Service {
 				}
 				//Did not find buffer in the network, something is wrong
 				Log.w(TAG, "joinIrcUser: Did not find buffer with name " + bufferName);
-				throw new RuntimeException("joinIrcUser: Did not find buffer with name " + bufferName);
 			case R.id.USER_CHANGEDNICK:
 				if (networks.getNetworkById(msg.arg1) == null) {
 					Log.e(TAG, "Could not find network with id " + msg.arg1 + " for changing a user nick");
@@ -662,7 +681,10 @@ public class CoreConnService extends Service {
 				networks.getNetworkById(msg.arg1).setNick((String)msg.obj);
 				break;
 			case R.id.REMOVE_BUFFER:
-				networks.getNetworkById(msg.arg1).removeBuffer(msg.arg2);
+				BusProvider.getInstance().post(new BufferRemovedEvent(msg.arg2));
+				if(networks.getNetworkById(msg.arg1)!=null){
+					networks.getNetworkById(msg.arg1).removeBuffer(msg.arg2);
+				}
 				break;
 			case R.id.SET_CORE_LATENCY:
                 latency = msg.arg1;
@@ -818,12 +840,20 @@ public class CoreConnService extends Service {
             }
         }
     };
+
+    private void checkSwitchingTo(Buffer buffer) {
+        if (networkToSwitchTo == buffer.getInfo().networkId && bufferNameToSwitchTo.equals(buffer.getInfo().name)) {
+            BusProvider.getInstance().post(new BufferOpenedEvent(buffer.getInfo().id));
+        }
+        networkToSwitchTo = -1;
+        bufferNameToSwitchTo = "";
+    }
 	
 	@Produce
 	public ConnectionChangedEvent produceConnectionStatus() {
-		if(isConnected()) {
+		if(isConnected())
 			return new ConnectionChangedEvent(Status.Connected);
-        } else
+		else 
 			return new ConnectionChangedEvent(Status.Disconnected);
 	}
 	
@@ -834,7 +864,7 @@ public class CoreConnService extends Service {
 	
 	@Produce
 	public NetworksAvailableEvent produceNetworksAvailable() {
-        return new NetworksAvailableEvent(networks);
+		return new NetworksAvailableEvent(networks);
 	}
 	
 	@Subscribe
@@ -868,6 +898,7 @@ public class CoreConnService extends Service {
 	@Subscribe
 	public void doManageChannel(ManageChannelEvent event) {
 		if(event.action == ChannelAction.DELETE) {
+			BusProvider.getInstance().post(new BufferRemovedEvent(event.bufferId));
 			coreConn.requestRemoveBuffer(event.bufferId);
 		} else if(event.action == ChannelAction.PERM_HIDE) {
 			coreConn.requestPermHideBuffer(event.bufferId);
@@ -909,8 +940,12 @@ public class CoreConnService extends Service {
 	
 	@Subscribe
 	public void getGetBacklog(GetBacklogEvent event) {
-		Log.d(TAG, "Fetching more backlog");
-		coreConn.requestMoreBacklog(event.bufferId, event.backlogAmount);
+        if(event!=null){
+            Log.d(TAG, "Fetching more backlog");
+            coreConn.requestMoreBacklog(event.bufferId, event.backlogAmount);
+        }else{
+            Log.e(TAG, "Cannot request backlog, event was null!");
+        }
 	}
 	
 	@Subscribe
@@ -924,6 +959,11 @@ public class CoreConnService extends Service {
             }
         }
 	}
+
+    @Subscribe
+    public void doQueryUserEvent(QueryUserEvent event) {
+        queryUser(event.bufferId, event.nick);
+    }
 	
 	@Produce
 	public InitProgressEvent produceInitDoneEvent() {

@@ -1,62 +1,73 @@
 package com.iskrembilen.quasseldroid.gui.fragments;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Observable;
+import java.util.Observer;
+
+import com.iskrembilen.quasseldroid.Buffer;
+import com.iskrembilen.quasseldroid.BufferInfo;
+import com.iskrembilen.quasseldroid.IrcMessage;
+import com.iskrembilen.quasseldroid.Network;
+import com.iskrembilen.quasseldroid.NetworkCollection;
+import com.iskrembilen.quasseldroid.Quasseldroid;
+import com.iskrembilen.quasseldroid.R;
+import com.iskrembilen.quasseldroid.IrcMessage.Type;
+import com.iskrembilen.quasseldroid.events.BufferOpenedEvent;
+import com.iskrembilen.quasseldroid.events.CompleteNickEvent;
+import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent;
+import com.iskrembilen.quasseldroid.events.GetBacklogEvent;
+import com.iskrembilen.quasseldroid.events.ManageChannelEvent;
+import com.iskrembilen.quasseldroid.events.ManageMessageEvent;
+import com.iskrembilen.quasseldroid.events.NetworksAvailableEvent;
+import com.iskrembilen.quasseldroid.events.SendMessageEvent;
+import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent.Status;
+import com.iskrembilen.quasseldroid.events.ManageChannelEvent.ChannelAction;
+import com.iskrembilen.quasseldroid.events.ManageMessageEvent.MessageAction;
+import com.iskrembilen.quasseldroid.events.UpdateReadBufferEvent;
+import com.iskrembilen.quasseldroid.gui.MainActivity;
+import com.iskrembilen.quasseldroid.gui.LoginActivity;
+import com.iskrembilen.quasseldroid.gui.PreferenceView;
+import com.iskrembilen.quasseldroid.util.BusProvider;
+import com.iskrembilen.quasseldroid.util.Helper;
+import com.iskrembilen.quasseldroid.util.InputHistoryHelper;
+import com.iskrembilen.quasseldroid.util.NetsplitHelper;
+import com.iskrembilen.quasseldroid.util.NickCompletionHelper;
+import com.iskrembilen.quasseldroid.util.ThemeUtil;
+import com.squareup.otto.Subscribe;
+
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
+import android.opengl.Visibility;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentTransaction;
 import android.util.Log;
+import android.view.Display;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
+
+import com.actionbarsherlock.app.SherlockFragment;
+import com.actionbarsherlock.view.Menu;
+import com.actionbarsherlock.view.MenuInflater;
+import com.actionbarsherlock.view.MenuItem;
 import android.view.View;
-import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.view.View.OnClickListener;
 import android.widget.AbsListView;
-import android.widget.AbsListView.OnScrollListener;
 import android.widget.BaseAdapter;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
-import android.widget.TextView.OnEditorActionListener;
 import android.widget.Toast;
-
-import com.actionbarsherlock.app.SherlockFragment;
-import com.actionbarsherlock.view.Menu;
-import com.actionbarsherlock.view.MenuInflater;
-import com.actionbarsherlock.view.MenuItem;
-import com.iskrembilen.quasseldroid.Buffer;
-import com.iskrembilen.quasseldroid.BufferInfo;
-import com.iskrembilen.quasseldroid.IrcMessage;
-import com.iskrembilen.quasseldroid.IrcMessage.Type;
-import com.iskrembilen.quasseldroid.NetworkCollection;
-import com.iskrembilen.quasseldroid.Quasseldroid;
-import com.iskrembilen.quasseldroid.R;
-import com.iskrembilen.quasseldroid.events.BufferOpenedEvent;
-import com.iskrembilen.quasseldroid.events.CompleteNickEvent;
-import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent.Status;
-import com.iskrembilen.quasseldroid.events.GetBacklogEvent;
-import com.iskrembilen.quasseldroid.events.ManageChannelEvent;
-import com.iskrembilen.quasseldroid.events.ManageChannelEvent.ChannelAction;
-import com.iskrembilen.quasseldroid.events.ManageMessageEvent;
-import com.iskrembilen.quasseldroid.events.ManageMessageEvent.MessageAction;
-import com.iskrembilen.quasseldroid.events.NetworksAvailableEvent;
-import com.iskrembilen.quasseldroid.events.SendMessageEvent;
-import com.iskrembilen.quasseldroid.events.UpdateReadBufferEvent;
-import com.iskrembilen.quasseldroid.util.BusProvider;
-import com.iskrembilen.quasseldroid.util.Helper;
-import com.iskrembilen.quasseldroid.util.InputHistoryHelper;
-import com.iskrembilen.quasseldroid.util.NickCompletionHelper;
-import com.iskrembilen.quasseldroid.util.ThemeUtil;
-import com.squareup.otto.Subscribe;
-
-import java.util.ArrayList;
-import java.util.Observable;
-import java.util.Observer;
+import android.widget.AbsListView.OnScrollListener;
+import android.widget.TextView.OnEditorActionListener;
 
 public class ChatFragment extends SherlockFragment {
 
@@ -216,7 +227,7 @@ public class ChatFragment extends SherlockFragment {
 	public void onStop() {
         Log.d(TAG, "Stopping fragment");
 		super.onStop();
-		if (Quasseldroid.status == Status.Connected && getUserVisibleHint()) updateRead();
+		if (Quasseldroid.connected && getUserVisibleHint()) updateRead();
 		adapter.clearBuffer();
 		BusProvider.getInstance().unregister(this);
         setUserVisibleHint(false);
@@ -274,12 +285,12 @@ public class ChatFragment extends SherlockFragment {
         Log.d(TAG, "Setting buffer and chat is visible: " + getUserVisibleHint());
 		this.bufferId = bufferId;
 		if(adapter != null && networks != null) {
-            Buffer buffer = networks.getBufferById(bufferId);
-            if (buffer != null) {
-                if(adapter.buffer != null && bufferId != adapter.buffer.getInfo().id) {
-                    updateMarkerLine();
-                }
-                adapter.clearBuffer();
+            if(adapter.buffer != null && bufferId != adapter.buffer.getInfo().id) {
+                updateMarkerLine();
+            }
+			adapter.clearBuffer();
+			Buffer buffer = networks.getBufferById(bufferId);
+            if(buffer!=null){
                 adapter.setBuffer(buffer, networks);
                 nickCompletionHelper = new NickCompletionHelper(buffer.getUsers().getUniqueUsers());
                 autoCompleteButton.setEnabled(true);
@@ -287,14 +298,16 @@ public class ChatFragment extends SherlockFragment {
                 buffer.setDisplayed(true);
                 BusProvider.getInstance().post(new ManageChannelEvent(buffer.getInfo().id, ChannelAction.HIGHLIGHTS_READ));
 
-                //Move list to correct position
+                //Move list to correect position
                 if (adapter.buffer.getTopMessageShown() == 0) {
                     backlogList.setSelection(adapter.getCount()-1);
                 }else{
                     adapter.setListTopMessage(adapter.buffer.getTopMessageShown());
                 }
+            }else{
+                resetFragment();
             }
-        }
+		}
 	}
 
 	public class BacklogAdapter extends BaseAdapter implements Observer {
@@ -316,11 +329,12 @@ public class ChatFragment extends SherlockFragment {
 			if ( buffer.getInfo().type == BufferInfo.Type.QueryBuffer ){
 				topic = buffer.getInfo().name;
 			} else if ( buffer.getInfo().type == BufferInfo.Type.StatusBuffer ){
-				topic = buffer.getInfo().name + " ("
-						+ networks.getNetworkById(buffer.getInfo().networkId).getServer() + ") | "
+				Network network = networks.getNetworkById(buffer.getInfo().networkId);
+				topic = network.getName() + " ("
+						+ network.getServer() + ") | "
 						+ getResources().getString(R.string.users) + ": "
-						+ networks.getNetworkById(buffer.getInfo().networkId).getCountUsers() + " | "
-						+ Helper.formatLatency(networks.getNetworkById(buffer.getInfo().networkId).getLatency(), getResources());
+						+ network.getCountUsers() + " | "
+						+ Helper.formatLatency(network.getLatency(), getResources());
 			} else{
 				 topic = buffer.getInfo().name + ": " + buffer.getTopic();
 			}
@@ -396,8 +410,14 @@ public class ChatFragment extends SherlockFragment {
 				holder.nickView.setTextColor(ThemeUtil.chatServerColor);
 				holder.msgView.setText(entry.content);
 				break;
+			case Topic:
+				holder.nickView.setText("*");
+				holder.msgView.setTextColor(ThemeUtil.chatTopicColor);
+				holder.nickView.setTextColor(ThemeUtil.chatTopicColor);
+				holder.msgView.setText(entry.content);
+				break;
 			case Notice:
-				holder.nickView.setText(entry.getNick());
+				holder.nickView.setText("["+entry.getNick()+"]");
 				holder.msgView.setTextColor(ThemeUtil.chatNoticeColor);
 				holder.nickView.setTextColor(ThemeUtil.chatNoticeColor);
 				holder.msgView.setText(entry.content);
@@ -418,7 +438,7 @@ public class ChatFragment extends SherlockFragment {
 				holder.nickView.setText("<--");
 				holder.msgView.setText(entry.getNick() + " has quit (" + entry.content + ")");
 				holder.msgView.setTextColor(ThemeUtil.chatQuitColor);
-				holder.nickView.setTextColor(ThemeUtil.chatPartColor);
+				holder.nickView.setTextColor(ThemeUtil.chatQuitColor);
 				break;
 			case Kill:
 				holder.nickView.setText("<--");
@@ -446,6 +466,18 @@ public class ChatFragment extends SherlockFragment {
 				holder.msgView.setText(entry.getNick()+" is now known as " + entry.content.toString());
 				holder.msgView.setTextColor(ThemeUtil.chatNickColor);
 				holder.nickView.setTextColor(ThemeUtil.chatNickColor);
+				break;
+			case NetsplitJoin:
+				holder.nickView.setText("=>");
+				holder.msgView.setText(new NetsplitHelper(entry.content.toString()).formatJoinMessage());
+				holder.msgView.setTextColor(ThemeUtil.chatNetsplitJoinColor);
+				holder.nickView.setTextColor(ThemeUtil.chatNetsplitJoinColor);
+				break;
+			case NetsplitQuit:
+				holder.nickView.setText("<=");
+				holder.msgView.setText(new NetsplitHelper(entry.content.toString()).formatQuitMessage());
+				holder.msgView.setTextColor(ThemeUtil.chatNetsplitQuitColor);
+				holder.nickView.setTextColor(ThemeUtil.chatNetsplitQuitColor);
 				break;
 			case DayChange:
 				holder.nickView.setText("-");
@@ -554,7 +586,9 @@ public class ChatFragment extends SherlockFragment {
 	}	
 
 	private void onNickComplete() {
-		nickCompletionHelper.completeNick(inputField);
+        if(nickCompletionHelper!=null){
+           nickCompletionHelper.completeNick(inputField);
+        }
 	}
 
 	public static class ViewHolder {
@@ -604,9 +638,11 @@ public class ChatFragment extends SherlockFragment {
 	@Subscribe
 	public void onBufferOpened(BufferOpenedEvent event) {
         Log.d(TAG, "onBufferOpened event");
+        this.bufferId = event.bufferId;
 		if(event.bufferId != -1) {
-			this.bufferId = event.bufferId;
 			setBuffer(bufferId);
+		}else{
+            resetFragment();
 		}
         Log.d(TAG, "onBufferOpened done");
 	}
@@ -621,5 +657,15 @@ public class ChatFragment extends SherlockFragment {
 	public void onCompleteNick(CompleteNickEvent event) {
 		onNickComplete();
 	}
+
+    private void resetFragment(){
+        adapter.clearBuffer();
+        topicView.setText("");
+        topicViewFull.setText("");
+        autoCompleteButton.setEnabled(false);
+        inputField.setText("");
+        inputField.setEnabled(false);
+        nickCompletionHelper=null;
+    }
 }
 

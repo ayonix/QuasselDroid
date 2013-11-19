@@ -22,44 +22,36 @@
  */
 
 package com.iskrembilen.quasseldroid.gui;
-
 import android.content.ComponentName;
-import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
-import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.preference.PreferenceManager;
-import android.support.v4.app.ActionBarDrawerToggle;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.app.FragmentTransaction;
+import android.support.v4.app.*;
+import android.support.v4.view.ViewPager;
 import android.support.v4.widget.DrawerLayout;
+import android.support.v4.widget.ViewDragHelper;
 import android.util.Log;
-import android.view.Gravity;
-import android.view.View;
+import android.view.*;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.Toast;
-
-import com.actionbarsherlock.app.SherlockFragmentActivity;
 import com.actionbarsherlock.view.Menu;
 import com.actionbarsherlock.view.MenuItem;
+import android.widget.Toast;
+import android.content.res.Configuration;
+import android.content.Context;
+
+import com.actionbarsherlock.app.SherlockFragmentActivity;
 import com.iskrembilen.quasseldroid.Buffer;
+import com.iskrembilen.quasseldroid.BufferInfo;
 import com.iskrembilen.quasseldroid.NetworkCollection;
 import com.iskrembilen.quasseldroid.Quasseldroid;
 import com.iskrembilen.quasseldroid.R;
-import com.iskrembilen.quasseldroid.events.BufferOpenedEvent;
-import com.iskrembilen.quasseldroid.events.CompleteNickEvent;
-import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent;
+import com.iskrembilen.quasseldroid.events.*;
 import com.iskrembilen.quasseldroid.events.ConnectionChangedEvent.Status;
-import com.iskrembilen.quasseldroid.events.DisconnectCoreEvent;
-import com.iskrembilen.quasseldroid.events.InitProgressEvent;
-import com.iskrembilen.quasseldroid.events.LatencyChangedEvent;
-import com.iskrembilen.quasseldroid.events.UpdateReadBufferEvent;
 import com.iskrembilen.quasseldroid.gui.fragments.BufferFragment;
 import com.iskrembilen.quasseldroid.gui.fragments.ChatFragment;
 import com.iskrembilen.quasseldroid.gui.fragments.ConnectingFragment;
@@ -70,6 +62,8 @@ import com.iskrembilen.quasseldroid.util.Helper;
 import com.iskrembilen.quasseldroid.util.ThemeUtil;
 import com.squareup.otto.Produce;
 import com.squareup.otto.Subscribe;
+
+import java.lang.reflect.Field;
 
 public class MainActivity extends SherlockFragmentActivity {
 
@@ -109,6 +103,26 @@ public class MainActivity extends SherlockFragmentActivity {
 
         drawer = (DrawerLayout)findViewById(R.id.drawer);
 
+        try{
+            Field mLeftDragger = drawer.getClass().getDeclaredField("mLeftDragger");
+            mLeftDragger.setAccessible(true);
+            ViewDragHelper leftDraggerObj = (ViewDragHelper) mLeftDragger.get(drawer);
+            Field mLeftEdgeSize = leftDraggerObj.getClass().getDeclaredField("mEdgeSize");
+            mLeftEdgeSize.setAccessible(true);
+            int leftEdge = mLeftEdgeSize.getInt(leftDraggerObj);
+            mLeftEdgeSize.setInt(leftDraggerObj, leftEdge * 3);
+
+            Field mRightDragger = drawer.getClass().getDeclaredField("mRightDragger");
+            mRightDragger.setAccessible(true);
+            ViewDragHelper rightDraggerObj = (ViewDragHelper) mRightDragger.get(drawer);
+            Field mRightEdgeSize = rightDraggerObj.getClass().getDeclaredField("mEdgeSize");
+            mRightEdgeSize.setAccessible(true);
+            int rightEdge = mRightEdgeSize.getInt(rightDraggerObj);
+            mRightEdgeSize.setInt(rightDraggerObj, rightEdge * 3);
+        }catch(Exception e){
+            Log.e(TAG, "Setting the draggable zone for the drawers failed!", e);
+        }
+
         if(savedInstanceState != null) {
             Log.d(TAG, "MainActivity has savedInstanceState");
             openedBuffer = savedInstanceState.getInt(BUFFER_ID_EXTRA);
@@ -146,10 +160,12 @@ public class MainActivity extends SherlockFragmentActivity {
                 if(chatFragment != null) chatFragment.setMenuVisibility(true);
 
                 if(openedBuffer != -1) {
-                    Buffer buffer = NetworkCollection.getInstance().getBufferById(openedBuffer);
-                    if (buffer != null) {
+                    NetworkCollection networks = NetworkCollection.getInstance();
+                    Buffer buffer = networks.getBufferById(openedBuffer);
+                    if (buffer.getInfo().type == BufferInfo.Type.StatusBuffer)
+                        getSupportActionBar().setTitle(networks.getNetworkById(buffer.getInfo().networkId).getName());
+                    else
                         getSupportActionBar().setTitle(buffer.getInfo().name);
-                    }
                 } else {
                     getSupportActionBar().setTitle(getResources().getString(R.string.app_name));
                     invalidateOptionsMenu();
@@ -229,7 +245,7 @@ public class MainActivity extends SherlockFragmentActivity {
 	protected void onResume() {
 		super.onResume();
 		BusProvider.getInstance().register(this);
-		if(Quasseldroid.status == Status.Disconnected) {
+		if(!Quasseldroid.connected) {
 			returnToLogin();
 		} else if (Quasseldroid.status == Status.Connecting) {
             showInitProgress();
@@ -249,6 +265,7 @@ public class MainActivity extends SherlockFragmentActivity {
 		super.onPause();
         isDrawerOpen = drawer.isDrawerOpen(Gravity.LEFT);
 		BusProvider.getInstance().unregister(this);
+
 	}
 
     @Override
@@ -392,6 +409,7 @@ public class MainActivity extends SherlockFragmentActivity {
 			if(event.reason != "") {
 				removeDialog(R.id.DIALOG_CONNECTING);
 				Toast.makeText(MainActivity.this.getApplicationContext(), event.reason, Toast.LENGTH_LONG).show();
+
 			}
 			returnToLogin();
 		}
@@ -408,7 +426,9 @@ public class MainActivity extends SherlockFragmentActivity {
 	public void onBufferOpened(BufferOpenedEvent event) {
 		if(event.bufferId != -1) {
 			openedBuffer = event.bufferId;
-            drawer.closeDrawers();
+			if(event.switchToBuffer){
+				drawer.closeDrawers();
+			}
 		}
 	}
 	
@@ -416,6 +436,16 @@ public class MainActivity extends SherlockFragmentActivity {
 	 public BufferOpenedEvent produceBufferOpenedEvent() {
 		 return new BufferOpenedEvent(openedBuffer);
 	 }
+	 
+	@Subscribe
+	public void onBufferRemoved(BufferRemovedEvent event) {
+		if(event.bufferId == openedBuffer) {
+			openedBuffer = -1;
+			BusProvider.getInstance().post(new BufferOpenedEvent(-1, false));
+            drawer.closeDrawer(Gravity.RIGHT);
+			drawer.openDrawer(Gravity.LEFT);
+		}
+	}
 
     private ServiceConnection focusConnection = new ServiceConnection() {
         public void onServiceConnected( ComponentName cn, IBinder service ) {}

@@ -20,6 +20,7 @@ import com.iskrembilen.quasseldroid.R;
 import com.iskrembilen.quasseldroid.UserCollection;
 import com.iskrembilen.quasseldroid.events.BufferOpenedEvent;
 import com.iskrembilen.quasseldroid.events.NetworksAvailableEvent;
+import com.iskrembilen.quasseldroid.events.UserClickedEvent;
 import com.iskrembilen.quasseldroid.util.BusProvider;
 import com.squareup.otto.Subscribe;
 
@@ -34,6 +35,7 @@ public class NickListFragment extends SherlockFragment {
 	private NetworkCollection networks;
 	private static final int[] EXPANDED_STATE = {android.R.attr.state_expanded};
 	private static final int[] NOT_EXPANDED_STATE = {android.R.attr.state_empty};
+    private final String TAG = NickListFragment.class.getSimpleName();
 
 	public static NickListFragment newInstance() {
 		return new NickListFragment();
@@ -81,6 +83,10 @@ public class NickListFragment extends SherlockFragment {
 		outState.putInt("bufferid", bufferId);
 		super.onSaveInstanceState(outState);
 	}
+
+    private void queryUser(String nick) {
+        BusProvider.getInstance().post(new UserClickedEvent(bufferId, nick));
+    }
 
 	public class NicksAdapter extends BaseExpandableListAdapter implements Observer{
 
@@ -146,7 +152,7 @@ public class NickListFragment extends SherlockFragment {
 			} else {
 				holder = (ViewHolderChild)convertView.getTag();
 			}
-			IrcUser entry = getChild(groupPosition, childPosition);
+			final IrcUser entry = getChild(groupPosition, childPosition);
 			holder.nickView.setText(entry.nick);
 			if (entry.away){
 				holder.userImage.setImageResource(R.drawable.im_user_away);
@@ -154,6 +160,14 @@ public class NickListFragment extends SherlockFragment {
 			else {
 				holder.userImage.setImageResource(R.drawable.im_user);
 			}
+
+            holder.nickView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    queryUser(entry.nick);
+                }
+            });
+
 			return convertView;
 		}
 
@@ -272,7 +286,7 @@ public class NickListFragment extends SherlockFragment {
 
 	private void updateUsers() {
 		Buffer buffer = networks.getBufferById(bufferId);
-        if (buffer != null) {
+        if(buffer!=null){
 		    adapter.setUsers(buffer.getUsers());
         }
 	}

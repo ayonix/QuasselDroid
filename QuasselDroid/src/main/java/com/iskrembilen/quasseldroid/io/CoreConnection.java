@@ -28,28 +28,20 @@ import android.os.Message;
 import android.preference.PreferenceManager;
 import android.util.Log;
 import android.util.Pair;
-
-import com.iskrembilen.quasseldroid.Buffer;
-import com.iskrembilen.quasseldroid.BufferCollection;
-import com.iskrembilen.quasseldroid.BufferInfo;
-import com.iskrembilen.quasseldroid.CoreInfo;
-import com.iskrembilen.quasseldroid.IrcMessage;
-import com.iskrembilen.quasseldroid.IrcUser;
-import com.iskrembilen.quasseldroid.Network;
+import com.iskrembilen.quasseldroid.*;
 import com.iskrembilen.quasseldroid.Network.ConnectionState;
-import com.iskrembilen.quasseldroid.R;
 import com.iskrembilen.quasseldroid.exceptions.UnsupportedProtocolException;
 import com.iskrembilen.quasseldroid.io.CustomTrustManager.NewCertificateException;
-import com.iskrembilen.quasseldroid.qtcomm.EmptyQVariantException;
-import com.iskrembilen.quasseldroid.qtcomm.QDataInputStream;
-import com.iskrembilen.quasseldroid.qtcomm.QDataOutputStream;
-import com.iskrembilen.quasseldroid.qtcomm.QMetaType;
-import com.iskrembilen.quasseldroid.qtcomm.QMetaTypeRegistry;
-import com.iskrembilen.quasseldroid.qtcomm.QVariant;
-import com.iskrembilen.quasseldroid.qtcomm.QVariantType;
+import com.iskrembilen.quasseldroid.qtcomm.*;
 import com.iskrembilen.quasseldroid.service.CoreConnService;
 import com.iskrembilen.quasseldroid.util.MessageUtil;
+import com.iskrembilen.quasseldroid.util.NetsplitHelper;
 
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.Socket;
@@ -58,34 +50,18 @@ import java.security.GeneralSecurityException;
 import java.security.cert.CertificateException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collections;
-import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.net.SocketFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-
 public final class CoreConnection {
 
 	private static final String TAG = CoreConnection.class.getSimpleName();
 
-    private Socket socket;
+	private Socket socket;
 	private QDataOutputStream outStream;
 	private QDataInputStream inStream;
 
@@ -347,22 +323,6 @@ public final class CoreConnection {
 	 * @param message content of message
 	 */
 	public void sendMessage(int buffer, String message) {
-		if (message.charAt(0) == '/') {
-			String t[] = message.split(" ");
-
-			message = t[0].toUpperCase();
-			if (t.length > 1){
-				StringBuilder tmpMsg = new StringBuilder(message);
-				for (int i=1; i<t.length; i++) {
-					tmpMsg.append(' ');
-					tmpMsg.append(t[i]);
-				}
-				message = tmpMsg.toString();
-			}
-		} else {
-			message = "/SAY " + message;
-		}
-
 		List<QVariant<?>> retFunc = new LinkedList<QVariant<?>>();
 		retFunc.add(new QVariant<Integer>(RequestType.RpcCall.getValue(), QVariantType.Int));
 		retFunc.add(new QVariant<String>("2sendInput(BufferInfo,QString)", QVariantType.String));
@@ -412,32 +372,16 @@ public final class CoreConnection {
 		inStream = new QDataInputStream(socket.getInputStream());
 		Map<String, QVariant<?>> reply = readQVariantMap();
 		coreInfo = new CoreInfo();
-		coreInfo.setCoreFeatures((Integer)reply.get("CoreFeatures").getData());
 		coreInfo.setCoreInfo((String)reply.get("CoreInfo").getData());
 		coreInfo.setSupportSsl((Boolean)reply.get("SupportSsl").getData());
-		coreInfo.setCoreDate(new Date((String)reply.get("CoreDate").getData()));
-		coreInfo.setCoreStartTime((GregorianCalendar)reply.get("CoreStartTime").getData());
-		String coreVersion = (String)reply.get("CoreVersion").getData(); //CoreVersion : v0.7.1 (git-<a href="http://git.quassel-irc.org/?p=quassel.git;a=commit;h=aa285964d0e486a681f56254dc123857c15c66fa">aa28596</a>)
-		coreVersion = coreVersion.substring(coreVersion.indexOf("v")+1, coreVersion.indexOf(" "));
-		coreInfo.setCoreVersion(coreVersion);
 		coreInfo.setConfigured((Boolean)reply.get("Configured").getData());
 		coreInfo.setLoginEnabled((Boolean)reply.get("LoginEnabled").getData());
 		coreInfo.setMsgType((String)reply.get("MsgType").getData());
 		coreInfo.setProtocolVersion(((Long)reply.get("ProtocolVersion").getData()).intValue());
 		coreInfo.setSupportsCompression((Boolean)reply.get("SupportsCompression").getData());
 		
-		Matcher matcher = Pattern.compile("(\\d+)\\W(\\d+)\\W", Pattern.CASE_INSENSITIVE).matcher(coreInfo.getCoreVersion());
-		Log.i(TAG, "Core version: " + coreInfo.getCoreVersion());
-		int version, release;
-		if (matcher.find()) {
-			version = Integer.parseInt(matcher.group(1));
-			release = Integer.parseInt(matcher.group(2));
-		} else {
-			throw new UnsupportedProtocolException("Can't match core version: " + coreInfo.getCoreVersion());
-		}
-		
-		//Check that the protocol version is atleast 10 and the version is above 0.6.0
-		if(coreInfo.getProtocolVersion()<10 || !(version>0 || (version==0 && release>=6)))
+		//Check that the protocol version is at least 10
+		if(coreInfo.getProtocolVersion()<10)
 			throw new UnsupportedProtocolException("Protocol version is old: "+coreInfo.getProtocolVersion());
 		/*for (String key : reply.keySet()) {
 			System.out.println("\t" + key + " : " + reply.get(key));
@@ -640,16 +584,14 @@ public final class CoreConnection {
 				
 				QMetaTypeRegistry.serialize(QMetaType.Type.QVariant, bos, data);
 				// Tell the other end how much data to expect
-                if (outStream != null) {
-                    outStream.writeUInt(bos.size(), 32);
-
-                    // Sanity check, check that we can decode our own stuff before sending it off
-                    //QDataInputStream bis = new QDataInputStream(new ByteArrayInputStream(baos.toByteArray()));
-                    //QMetaTypeRegistry.instance().getTypeForId(QMetaType.Type.QVariant.getValue()).getSerializer().unserialize(bis, DataStreamVersion.Qt_4_2);
-
-                    // Send data
-                    QMetaTypeRegistry.serialize(QMetaType.Type.QVariant, outStream, data);
-                }
+				outStream.writeUInt(bos.size(), 32);
+				
+				// Sanity check, check that we can decode our own stuff before sending it off
+				//QDataInputStream bis = new QDataInputStream(new ByteArrayInputStream(baos.toByteArray()));
+				//QMetaTypeRegistry.instance().getTypeForId(QMetaType.Type.QVariant.getValue()).getSerializer().unserialize(bis, DataStreamVersion.Qt_4_2);
+	
+				// Send data 
+				outStream.write(baos.toByteArray());
 				bos.close();
 				baos.close();
 			} catch (IOException e) {
@@ -716,7 +658,7 @@ public final class CoreConnection {
 		packedFunc.add(new QVariant<String>(objectName, QVariantType.String));
 		sendQVariantList(packedFunc);
 	}
-
+	
 	private void updateInitProgress(String message) {
 		Log.i(TAG, message);
 		service.getHandler().obtainMessage(R.id.INIT_PROGRESS, message).sendToTarget();
@@ -815,6 +757,7 @@ public final class CoreConnection {
 				Log.w(TAG, "Invalid username/password combination");
 				return "Invalid username/password combination.";
 			} catch (EmptyQVariantException e) {
+				e.printStackTrace();
 				return "IO error while connecting!";
 			}
 
@@ -977,7 +920,7 @@ public final class CoreConnection {
 									}
 								}
 								if(!foundChannel) 
-									throw new RuntimeException("A channel in a network has no coresponding buffer object " + chanName);
+									Log.e(TAG, "A channel in a network has no coresponding buffer object " + chanName);
 							}
 							
 							Log.i(TAG, "Sending network " + network.getName() + " to service");
@@ -1083,18 +1026,20 @@ public final class CoreConnection {
 							String topic = (String)map.get("topic").getData();
 							String[] tmp = objectName.split("/", 2);
 							int networkId = Integer.parseInt(tmp[0]);
-							for(Buffer buffer : networks.get(networkId).getBuffers().getRawBufferList()) {
-								if(buffer.getInfo().name.equalsIgnoreCase(bufferName)) {
-									Message msg = service.getHandler().obtainMessage(R.id.CHANNEL_TOPIC_CHANGED, networkId, buffer.getInfo().id, topic);
-									msg.sendToTarget();
-									msg = service.getHandler().obtainMessage(R.id.SET_BUFFER_ACTIVE,buffer.getInfo().id, 0, true);
-									msg.sendToTarget();
-									break;
-								}
-							}
-							
-							
-							
+                            boolean found = false;
+                            for(Buffer buffer : buffers.values()) {
+                                if(buffer.getInfo().name.equalsIgnoreCase(bufferName) && buffer.getInfo().networkId == networkId) {
+                                    found = true;
+                                    Message msg = service.getHandler().obtainMessage(R.id.CHANNEL_TOPIC_CHANGED, networkId, buffer.getInfo().id, topic);
+                                    msg.sendToTarget();
+                                    msg = service.getHandler().obtainMessage(R.id.SET_BUFFER_ACTIVE,buffer.getInfo().id, 0, true);
+                                    msg.sendToTarget();
+                                    break;
+                                }
+                            }
+                            if(!found) {
+                                Log.e(TAG, "Could not find buffer for IrcChannel initData");
+                            }
 						} 
 						else if (className.equals("BufferViewConfig")) {
 							Log.d(TAG, "InitData: BufferViewConfig");
@@ -1554,6 +1499,23 @@ public final class CoreConnection {
 								msg.obj = buffer;
 								msg.sendToTarget();
 							}
+							
+                            if(message.type == IrcMessage.Type.NetsplitJoin){
+                                NetsplitHelper netsplitHelper=new NetsplitHelper(message.content.toString());
+                                for(String nick:netsplitHelper.getNicks()){
+                                    IrcUser user = new IrcUser();
+                                    user.nick = nick;
+                                    service.getHandler().obtainMessage(R.id.NEW_USER_ADDED, message.bufferInfo.networkId, 0, user).sendToTarget();
+                                    sendInitRequest("IrcUser",message.bufferInfo.networkId+"/" + nick);
+                                }
+                            }
+
+                            if(message.type == IrcMessage.Type.NetsplitQuit){
+                                NetsplitHelper netsplitHelper=new NetsplitHelper(message.content.toString());
+                                for(String nick:netsplitHelper.getNicks()){
+                                    service.getHandler().obtainMessage(R.id.USER_QUIT, message.bufferInfo.networkId, 0, nick).sendToTarget();
+                                }
+                            }
 							
 							Message msg = service.getHandler().obtainMessage(R.id.NEW_MESSAGE_TO_SERVICE);
 							msg.obj = message;
