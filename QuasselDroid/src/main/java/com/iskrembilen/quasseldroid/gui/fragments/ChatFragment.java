@@ -3,6 +3,7 @@ package com.iskrembilen.quasseldroid.gui.fragments;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.v4.app.DialogFragment;
@@ -71,7 +72,7 @@ public class ChatFragment extends SherlockFragment {
     private TextView topicView;
     private TextView topicViewFull;
     private ImageButton autoCompleteButton;
-    private int dynamicBacklogAmout;
+    private int dynamicBacklogAmount;
     private NickCompletionHelper nickCompletionHelper;
     private int bufferId = -1;
 
@@ -200,7 +201,7 @@ public class ChatFragment extends SherlockFragment {
     @Override
     public void onStart() {
         super.onStart();
-        dynamicBacklogAmout = Integer.parseInt(preferences.getString(getString(R.string.preference_dynamic_backlog), "10"));
+        dynamicBacklogAmount = Integer.parseInt(preferences.getString(getString(R.string.preference_dynamic_backlog), "10"));
         autoCompleteButton.setEnabled(false);
         inputField.setEnabled(false);
         BusProvider.getInstance().register(this);
@@ -561,8 +562,8 @@ public class ChatFragment extends SherlockFragment {
         }
 
         public void getMoreBacklog() {
-            adapter.buffer.setBacklogPending(dynamicBacklogAmout);
-            BusProvider.getInstance().post(new GetBacklogEvent(adapter.getBufferId(), dynamicBacklogAmout));
+            adapter.buffer.setBacklogPending(true);
+            BusProvider.getInstance().post(new GetBacklogEvent(adapter.getBufferId(), dynamicBacklogAmount));
         }
 
         public void removeFilter(Type type) {
@@ -605,6 +606,19 @@ public class ChatFragment extends SherlockFragment {
             //			Log.d(TAG, "loading: "+ Boolean.toString(loading) +"totalItemCount: "+totalItemCount+ "visibleItemCount: " +visibleItemCount+"firstVisibleItem: "+firstVisibleItem+ "visibleThreshold: "+visibleThreshold);
             if (adapter.buffer != null && !adapter.buffer.hasPendingBacklog() && (firstVisibleItem <= visibleThreshold)) {
                 adapter.getMoreBacklog();
+            }
+
+            // This nasty little hack is required for emulating ListView.TRANSCRIPT_MODE_NORMAL functionality on GB
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.GINGERBREAD_MR1) {
+                if (visibleItemCount == 0 || visibleItemCount == totalItemCount || firstVisibleItem + visibleItemCount == totalItemCount) {
+                    if (view.getTranscriptMode() != AbsListView.TRANSCRIPT_MODE_ALWAYS_SCROLL) {
+                        view.setTranscriptMode(AbsListView.TRANSCRIPT_MODE_ALWAYS_SCROLL);
+                    }
+                } else {
+                    if (view.getTranscriptMode() != AbsListView.TRANSCRIPT_MODE_DISABLED) {
+                        view.setTranscriptMode(AbsListView.TRANSCRIPT_MODE_DISABLED);
+                    }
+                }
             }
         }
 
