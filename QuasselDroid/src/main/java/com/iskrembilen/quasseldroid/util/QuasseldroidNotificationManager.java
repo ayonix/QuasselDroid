@@ -173,6 +173,6 @@ public class QuasseldroidNotificationManager {
         // Set the info for the views that show in the notification panel.
         builder.setContentIntent(contentIntent);
         //Send the notification.
-        notifyManager.notify(R.id.NOTIFICATION_DISCONNECTED, builder.getNotification());
+        notifyManager.notify(R.id.NOTIFICATION, builder.getNotification());
     }
 }
