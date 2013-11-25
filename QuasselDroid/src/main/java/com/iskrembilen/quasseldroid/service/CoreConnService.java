@@ -24,10 +24,14 @@
 package com.iskrembilen.quasseldroid.service;
 
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.WifiLock;
 import android.os.Binder;
@@ -112,8 +116,6 @@ public class CoreConnService extends Service {
 
     public static final String LATENCY_CORE_KEY = "latency";
 
-    private CoreConnection coreConn;
-    private final IBinder binder = new LocalBinder();
     private boolean requestedDisconnect;
 
 	private CoreConnection coreConn;
@@ -136,11 +138,8 @@ public class CoreConnService extends Service {
     private boolean initDone = false;
     private String initReason = "";
 
-	private boolean preferenceUseWakeLock;
     private boolean preferenceReconnect;
     private boolean preferenceReconnectWifiOnly;
-
-	private WakeLock wakeLock;
 
     private boolean preferenceUseWakeLock;
     private WakeLock wakeLock;
@@ -257,12 +256,12 @@ public class CoreConnService extends Service {
         }
         requestedDisconnect = false;
         Bundle connectData = intent.getExtras();
-        long id = connectData.getLong("id");
-        String address = connectData.getString("address");
-        int port = connectData.getInt("port");
-        String username = connectData.getString("username");
-        String password = connectData.getString("password");
-        Boolean ssl = connectData.getBoolean("ssl");
+        coreId = connectData.getLong("id");
+        address = connectData.getString("address");
+        port = connectData.getInt("port");
+        username = connectData.getString("username");
+        password = connectData.getString("password");
+        ssl = connectData.getBoolean("ssl");
 
         connectToCore();
 	}
@@ -335,7 +334,7 @@ public class CoreConnService extends Service {
     public void connectToCore() {
         Log.i(TAG, "Connecting to core: " + address + ":" + port
                 + " with username " + username);
-        notificationManager = null;
+        networks = NetworkCollection.getInstance();
         networks.clear();
 
         acquireWakeLockIfEnabled();
@@ -969,11 +968,10 @@ public class CoreConnService extends Service {
     public void onFilterMessages(FilterMessagesEvent event) {
         Buffer buffer = networks.getBufferById(event.bufferId);
         if (buffer != null) {
-        if (event.filtered)
-            networks.getBufferById(event.bufferId).addFilterType(event.filterType);
-        else
-            networks.getBufferById(event.bufferId).removeFilterType(event.filterType);
-            }
+            if (event.filtered)
+                networks.getBufferById(event.bufferId).addFilterType(event.filterType);
+            else
+                networks.getBufferById(event.bufferId).removeFilterType(event.filterType);
         }
     }
 
