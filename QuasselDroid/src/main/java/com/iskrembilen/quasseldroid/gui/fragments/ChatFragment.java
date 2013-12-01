@@ -15,6 +15,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
 import android.widget.AbsListView;
 import android.widget.AbsListView.OnScrollListener;
 import android.widget.BaseAdapter;
@@ -87,6 +88,7 @@ public class ChatFragment extends SherlockFragment {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        Log.d(TAG, "Creating fragment");
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
         adapter = new BacklogAdapter(getSherlockActivity(), null);
@@ -138,8 +140,8 @@ public class ChatFragment extends SherlockFragment {
 
             @Override
             public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-                if (event != null && event.getAction() == KeyEvent.ACTION_DOWN &&
-                        ((event.getKeyCode() == KeyEvent.KEYCODE_ENTER) || (event.getKeyCode() == KeyEvent.KEYCODE_NUMPAD_ENTER))) {
+                if (actionId == EditorInfo.IME_ACTION_SEND || (event != null && event.getAction() == KeyEvent.ACTION_DOWN &&
+                        ((event.getKeyCode() == KeyEvent.KEYCODE_ENTER) || (event.getKeyCode() == KeyEvent.KEYCODE_NUMPAD_ENTER)))) {
                     String inputText = inputField.getText().toString();
 
                     if (!"".equals(inputText)) {
@@ -201,6 +203,7 @@ public class ChatFragment extends SherlockFragment {
 
     @Override
     public void onStart() {
+        Log.d(TAG, "Starting fragment");
         super.onStart();
         dynamicBacklogAmount = Integer.parseInt(preferences.getString(getString(R.string.preference_dynamic_backlog), "10"));
         autoCompleteButton.setEnabled(false);

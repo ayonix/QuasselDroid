@@ -144,7 +144,6 @@ public class CoreConnService extends Service {
     private boolean preferenceUseWakeLock;
     private WakeLock wakeLock;
 
-
     private WifiLock wifiLock;
 
     private long coreId;
@@ -605,11 +604,11 @@ public class CoreConnService extends Service {
                      */
                     notificationManager.notifyConnected();
                     initDone = true;
-                shouldReconnect = true;
-                resetReconnectCounter();
+                	shouldReconnect = true;
+                	resetReconnectCounter();
                     BusProvider.getInstance().post(new InitProgressEvent(true, ""));
                     BusProvider.getInstance().post(new NetworksAvailableEvent(networks));
-                BusProvider.getInstance().post(new ConnectionChangedEvent(Status.Connected));
+                	BusProvider.getInstance().post(new ConnectionChangedEvent(Status.Connected));
                     break;
                 case R.id.USER_PARTED:
                     bundle = (Bundle) msg.obj;
@@ -829,7 +828,6 @@ public class CoreConnService extends Service {
     }
 
     public Network getNetworkById(int networkId) {
-
         return networks.getNetworkById(networkId);
     }
 
